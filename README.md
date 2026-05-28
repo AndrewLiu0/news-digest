@@ -25,8 +25,7 @@ We use several industry-standard tools and "AI engines" to make this work:
 - **RSS Feeds:** Direct pipes into major newsrooms like the New York Times, Reuters, and South China Morning Post.
 
 ### 3. The "Brains" (AI Models)
-- **Groq & Llama 3:** High-speed AI that reads through the news items and decides what's important.
-- **OpenAI & Google Gemini:** Support libraries are included to allow for easy switching between different AI models if needed.
+- **OpenAI GPT-4o-mini:** High-speed, cost-efficient AI that reads through the news items and decides what's important.
 
 ### 4. Monitoring & Management
 - **LangSmith:** A dashboard that lets us watch the AI "think" in real-time, helping us debug and improve its accuracy.
@@ -42,8 +41,8 @@ You will need Python installed on your computer. You can download it from [pytho
 This tool connects to several external services. You will need a `.env` file in this folder containing your secret "keys" (like passwords for services):
 
 ```bash
-# AI Brain
-GROQ_API_KEY=your_groq_key_here
+# AI Brain (OpenAI)
+OPENAI_API_KEY=your_openai_key_here
 
 # Smart Search
 TAVILY_API_KEY=your_tavily_key_here
