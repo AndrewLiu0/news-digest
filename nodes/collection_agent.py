@@ -9,8 +9,7 @@ from dotenv import load_dotenv
 
 from llm import fast_model as base_model
 from config import (
-    OFFICIAL_PAGES, LOOKBACK_DAYS, ENABLE_OFFICIAL_SCRAPE,
-    MAX_PAGE_CONTENT_CHARS, JINA_TIMEOUT
+    OFFICIAL_PAGES, LOOKBACK_DAYS, ENABLE_OFFICIAL_SCRAPE
 )
 from utils import parse_article, canonicalize_url, is_within_lookback
 
@@ -18,7 +17,7 @@ load_dotenv()
 
 class Article(BaseModel):
     title: str = Field(description="Headline of the news item")
-    url: str = Field(description="Full URL to the article")
+    url: str = Field(description="Full URL to the specific news article. DO NOT extract category, index, or author URLs.")
     reasoning: str = Field(description="Brief explanation of why this is relevant to US-China relations")
     date: str = Field(description="Date found EXPLICITLY NEXT TO the article snippet. If no date is written right next to the title, YOU MUST LEAVE THIS BLANK OR SAY 'Unknown'.")
 
@@ -64,7 +63,7 @@ def run_collection_agent(state):
     # Process all official pages
     pages_to_process = OFFICIAL_PAGES
     
-    print(f"🚀 Starting parallel Official Scrape for {len(pages_to_process)} pages using {MAX_WORKERS} workers...")
+    print(f"Starting parallel Official Scrape for {len(pages_to_process)} pages using {MAX_WORKERS} workers...")
 
     def process_page(url):
         content = ""
@@ -93,12 +92,12 @@ def run_collection_agent(state):
         # 2. Fallback: Jina Reader (Paid/Rate Limited API)
         if not content or len(content) < 200:
             try:
-                # print(f"  ⚠️ Falling back to Jina for {url}")
-                resp = requests.get(f"https://r.jina.ai/{url}", headers={"X-Return-Format": "markdown"}, timeout=JINA_TIMEOUT)
+                # print(f"  Falling back to Jina for {url}")
+                resp = requests.get(f"https://r.jina.ai/{url}", headers={"X-Return-Format": "markdown"}, timeout=30)
                 if resp.status_code == 200:
                     content = filter_markdown(resp.text)
             except Exception as e:
-                print(f"  ❌ Fallback error on {url}: {e}")
+                print(f"  [Fallback error on {url}: {e}]")
                 
         if not content: return []
 
@@ -113,25 +112,26 @@ def run_collection_agent(state):
                 "2. EXCLUDE general news, local human interest stories, or infrastructure projects in third countries (e.g., Africa, SE Asia) unless they mention a direct US conflict/policy.\n"
                 "3. You MUST extract the EXACT DATE written next to or below the article title.\n"
                 "4. DO NOT use the generic 'Published Time' at the top of the page.\n"
-                "5. If there is no specific date for the article in the text, you MUST SKIP THE ARTICLE entirely."
+                "5. If there is no specific date for the article in the text, you MUST SKIP THE ARTICLE entirely.\n"
+                "6. Ensure the URL you extract is the specific link to the article itself, not a category or index page."
             )
             
             result = structured_llm.invoke([
                 ("system", system_prompt),
-                ("human", f"PAGE CONTENT:\n{content[:MAX_PAGE_CONTENT_CHARS]}")
+                ("human", f"PAGE CONTENT:\n{content[:25000]}")
             ])
 
             collected = []
             for art in result.articles:
                 # --- HARD PYTHON DATE FILTER ---
                 if not is_within_lookback(art.date):
-                    # print(f"  ❌ Discarded (Old): {art.title[:50]}... [{art.date}]")
+                    # print(f"  [Discarded (Old): {art.title[:50]}... ({art.date})]")
                     continue
                     
                 collected.append(art)
             return collected
         except Exception as e:
-            print(f"  ❌ Error on {url}: {e}")
+            print(f"  [Error on {url}: {e}]")
             return []
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
@@ -151,8 +151,7 @@ def run_collection_agent(state):
                 if parsed:
                     all_collected.append(parsed)
                     seen_urls.add(c_url)
-                    print(f"  ✅ Collected: {art.title[:50]}...")
+                    print(f"  [Collected: {art.title[:50]}...]")
 
-    print(f"✅ Parallel collection complete: {len(all_collected)} items captured.")
+    print(f"Parallel collection complete: {len(all_collected)} items captured.")
     return {"raw_items": all_collected}
-

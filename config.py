@@ -121,16 +121,10 @@ RSS_KEYWORDS = [
 # --- Global Settings ---
 LOOKBACK_DAYS = 7
 MAX_TOTAL_ARTICLES = 250  # Total articles in the final report
-MAX_SUMMARY_SENTENCES = 15 # Length of the executive summary
 
 # --- Processing & Limit Settings ---
 MAX_RELEVANCE_CHECK = 300      # Optimized for cost/quality balance
 MAX_DEEP_DIVE_COUNT = 15      # Focused on the most critical items
-MAX_PAGE_CONTENT_CHARS = 25000 # Sufficient for index pages
-MAX_SCRAPE_SIZE_CHARS = 75000  # More than enough for verbatim content
-JINA_TIMEOUT = 30             
-DIRECT_TIMEOUT = 20           
-SCRAPE_DELAY = 0.2            # Reduced delay for speed
 MAX_WORKERS = 30               # Increased parallel workers for faster runtime
 
 # --- Discovery Limits ---
@@ -145,6 +139,4 @@ ENABLE_TAVILY = True
 ENABLE_GOOGLE_NEWS = True
 ENABLE_CHINESE_STATE_MEDIA = True
 ENABLE_OFFICIAL_SCRAPE = True
-ENABLE_SCRAPING = False # Skips deep scraping for source-list-only runs
-ENABLE_NEWSLETTER = False # Skips newsletter synthesis
 ENABLE_RAW_SOURCE_LIST = True # If True, saves a source list BEFORE strategic deduplication

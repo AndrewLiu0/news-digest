@@ -55,39 +55,46 @@ def deduplicate_and_filter(state: WorkflowState):
         url = item.get("url", "")
         title = item.get("title", "")
         
-        # 1. Forensic LLM Verification (Mandatory for all items)
-        # We don't trust any discovery date for source-list rigor.
+        # 1. Forensic LLM Verification
         try:
             snippet = item.get("reasoning", "")[:1500]
+            # Format incoming_date for the LLM
+            formatted_discovery = incoming_date
+            if len(incoming_date) == 8:
+                formatted_discovery = f"{incoming_date[:4]}-{incoming_date[4:6]}-{incoming_date[6:]}"
+
             res = date_extractor.invoke([
-                ("system", f"You are a Forensic Historian. Extract the EXACT publication date from the news title or snippet.\n"
+                ("system", f"You are a Forensic Historian. Your goal is to identify the publication date.\n"
                             f"TODAY IS {today_str}.\n"
                             f"CUTOFF DATE IS {cutoff_date.strftime('%B %d, %Y')}.\n"
                             "RULES:\n"
-                            "1. ONLY return a date if you see it explicitly (e.g. 'May 21', 'Thursday', '3 days ago').\n"
-                            "2. If you see an old date (e.g. May 04), return it faithfully.\n"
-                            "3. If NO date is present, return '0000-00-00'. DO NOT GUESS.\n"
-                            "4. If the title mentions an old date, use that.\n"
-                            "Return ONLY YYYY-MM-DD."),
-                ("human", f"Title: {title}\nSnippet: {snippet}\nDiscovery Date: {incoming_date}")
+                            "1. Look for explicit dates in the Title or Snippet.\n"
+                            "2. If no explicit date is found in the text, check the 'Discovery Date' provided.\n"
+                            "3. If the 'Discovery Date' looks plausible (e.g., not 0000-00-00), you may use it.\n"
+                            "4. Return ONLY YYYY-MM-DD. If absolutely no date can be found or inferred, return '0000-00-00'."),
+                ("human", f"Title: {title}\nSnippet: {snippet}\nDiscovery Date: {formatted_discovery}")
             ])
             
             from utils import get_date_object
             dt = get_date_object(res.date_str)
+            
+            # Fallback to incoming_date if LLM failed but incoming_date is valid
+            if not dt and len(incoming_date) == 8 and incoming_date != "00000000":
+                dt = get_date_object(incoming_date)
             
             if not dt:
                 # One last try with Python on URL
                 dt = get_date_object("", url)
                 
             if not dt:
-                print(f"  ❌ PURGING (Unverifiable): {title[:50]}")
+                print(f"  [PURGING (Unverifiable): {title[:50]}]")
                 return None
 
             dt_just_day = datetime(dt.year, dt.month, dt.day)
             cutoff_just_day = datetime(cutoff_date.year, cutoff_date.month, cutoff_date.day)
             
             if dt_just_day < cutoff_just_day:
-                print(f"  ❌ PURGING (Old): {dt_just_day.strftime('%Y-%m-%d')} - {title[:50]}")
+                print(f"  [PURGING (Old): {dt_just_day.strftime('%Y-%m-%d')} - {title[:50]}]")
                 return None
             
             # If we reach here, it's verified and fresh
@@ -95,7 +102,7 @@ def deduplicate_and_filter(state: WorkflowState):
             return item
 
         except Exception as e:
-            print(f"  ⚠️ Validation error for {title[:30]}: {e}")
+            print(f"  [Validation error for {title[:30]}: {e}]")
             return None
 
     validated = []
@@ -109,99 +116,10 @@ def deduplicate_and_filter(state: WorkflowState):
     print(f"Deduplication & Date Filter complete: {len(validated)} fresh items passed to relevance check")
     return {"processed_items": validated}
 
-import trafilatura
-def clean_scraped_content(state: WorkflowState):
-    """Node 5: Uses Trafilatura for deterministic boilerplate removal, with LLM as fallback."""
-    scraped = state.get("scraped_content", [])
-    if not scraped:
-        return {"scraped_content": []}
-
-    print(f"Cleaner Node: Stripping boilerplate from {len(scraped)} articles using Trafilatura...")
-    
-    cleaned_results = []
-    
-    for item in scraped:
-        content = item.get("content", "")
-        url = item.get("url", "")
-        
-        if len(content) < 200:
-            cleaned_results.append(item)
-            continue
-            
-        # 1. Deterministic Clean with Trafilatura
-        # Trafilatura works best on HTML, but can handle some Markdown-like structures.
-        # It returns None if it fails to find main content.
-        trafil_content = trafilatura.extract(
-            content, 
-            include_tables=True, 
-            include_comments=False,
-            no_fallback=False # Allow it to try harder
-        )
-        
-        if trafil_content and len(trafil_content) > 100:
-            cleaned_results.append({
-                **item,
-                "content": trafil_content
-            })
-            print(f"  ✨ Trafilatura Cleaned: {item.get('title')[:50]}...")
-            continue
-
-        # 2. LLM Fallback (DISABLED)
-        # print(f"  🔄 Trafilatura insufficient for {item.get('title')[:30]}. Falling back to LLM...")
-        # try:
-        #     system_prompt = """You are a professional editor. Extract the main article text and remove all boilerplate (menus, ads, social links). Preserve tables and the core narrative. Return only cleaned markdown."""
-        #     response = base_model.invoke([
-        #         ("system", system_prompt),
-        #         ("human", f"URL: {url}\nCONTENT:\n{content[:25000]}")
-        #     ])
-        #     cleaned_results.append({
-        #         **item,
-        #         "content": response.content
-        #     })
-        #     print(f"  🤖 LLM Cleaned: {item.get('title')[:50]}...")
-        # except Exception as e:
-        #     print(f"  ⚠️ Cleaning error for {item.get('title')[:30]}: {e}")
-        print(f"  ⚠️ Trafilatura insufficient for {item.get('title')[:30]}. Using raw content.")
-        cleaned_results.append(item) # Use raw content if Trafilatura fails
-            
-    return {"scraped_content": cleaned_results}
-
 from concurrent.futures import ThreadPoolExecutor
-
 import os
 from datetime import datetime
 from config import MAX_TOTAL_ARTICLES, MAX_DEEP_DIVE_COUNT, MAX_RELEVANCE_CHECK, MAX_WORKERS, ENABLE_RAW_SOURCE_LIST
-
-def save_raw_sources(state: WorkflowState):
-    """
-    Node 2a-2: Saves the list of relevant sources BEFORE strategic deduplication.
-    Only runs if ENABLE_RAW_SOURCE_LIST is True.
-    """
-    if not ENABLE_RAW_SOURCE_LIST:
-        return {}
-
-    items = state.get("filtered_items", [])
-    if not items:
-        print("Save Raw Sources: No items to save.")
-        return {}
-
-    print(f"💾 Saving {len(items)} raw relevant sources before triage...")
-    
-    file_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    folder = "intel_reports"
-    os.makedirs(folder, exist_ok=True)
-    
-    source_list = []
-    for idx, item in enumerate(items, 1):
-        source_list.append(f"{idx}. {item['title']}")
-        source_list.append(f"Source: {item['url']}\n")
-        
-    filename = os.path.join(folder, f"sources_raw_{file_timestamp}.txt")
-    with open(filename, "w") as f:
-        f.write("\n".join(source_list))
-        
-    print(f"✅ Raw source list saved to: {filename}")
-    return {}
 
 def filter_relevance(state: WorkflowState):
     """Node 2: High-reliability LLM relevance check using GPT-4o-mini."""
@@ -248,7 +166,7 @@ Only answer 'YES' if it has a direct impact on the bilateral strategic relations
             if result.is_relevant.strip().upper() == 'YES':
                 return item
         except Exception as e:
-            print(f"⚠️ LLM Error for {item.get('title')[:30]}: {e}")
+            print(f"[LLM Error for {item.get('title')[:30]}: {e}]")
         return None
 
     all_relevant = []
@@ -268,7 +186,7 @@ Only answer 'YES' if it has a direct impact on the bilateral strategic relations
     
     # --- NO FALLBACK ---
     if not all_relevant and items_to_check:
-        print(f"⚠️ LLM Filter returned 0 relevant items out of {len(items_to_check[:MAX_RELEVANCE_CHECK])} checked.")
+        print(f"[LLM Filter returned 0 relevant items out of {len(items_to_check[:MAX_RELEVANCE_CHECK])} checked]")
         # We do NOT fallback to top items anymore, as they might be old or junk.
         return {"filtered_items": []} 
 
@@ -346,7 +264,7 @@ RULES:
         final_news = [news_items[i] for i in result.retained_indices if i < len(news_items)]
         print(f"Strategic Triage: Retained {len(final_news)} unique News items.")
     except Exception as e:
-        print(f"⚠️ Strategic Triage error: {e}. Falling back to top news.")
+        print(f"[Strategic Triage error: {e}. Falling back to top news]")
         final_news = news_items[:10]
         
     all_curated = gov_items + final_news
@@ -361,4 +279,3 @@ RULES:
         "filtered_items": top_items,
         "additional_sources": the_rest
     }
-
