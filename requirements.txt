@@ -1,0 +1,33 @@
+# Core Framework
+langgraph
+langchain
+langchain-core
+
+# AI Model Providers & SDKs
+langchain-groq
+langchain-openai
+langchain-google-genai
+groq
+openai
+google-genai
+
+# News & Search Tools
+requests
+tavily-python
+
+# Utilities
+python-dotenv
+typing-extensions
+trafilatura
+lxml_html_clean
+python-docx
+fpdf2
+
+# Development & Monitoring
+langsmith
+langgraph-cli
+
+# Google Workspace Integration
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
