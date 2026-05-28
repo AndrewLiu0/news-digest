@@ -47,8 +47,9 @@ OPENAI_API_KEY=your_openai_key_here
 # Smart Search
 TAVILY_API_KEY=your_tavily_key_here
 
-# Monitoring (Optional)
+# Monitoring & Deep Scraping (Optional)
 LANGSMITH_API_KEY=your_langsmith_key_here
+JINA_API_KEY=your_jina_key_here
 ```
 
 ### 3. Install the Tool
