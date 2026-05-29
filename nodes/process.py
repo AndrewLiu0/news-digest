@@ -121,6 +121,37 @@ import os
 from datetime import datetime
 from config import MAX_TOTAL_ARTICLES, MAX_DEEP_DIVE_COUNT, MAX_RELEVANCE_CHECK, MAX_WORKERS, ENABLE_RAW_SOURCE_LIST
 
+def save_raw_sources(state: WorkflowState):
+    """
+    Node 2a-2: Saves the list of ALL discovered and deduped sources BEFORE any filtering.
+    Only runs if ENABLE_RAW_SOURCE_LIST is True.
+    """
+    if not ENABLE_RAW_SOURCE_LIST:
+        return {}
+
+    items = state.get("processed_items", [])
+    if not items:
+        print("Save Raw Sources: No items to save.")
+        return {}
+
+    print(f"Saving {len(items)} raw discovered sources (backup)...")
+    
+    file_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    folder = "intel_reports"
+    os.makedirs(folder, exist_ok=True)
+    
+    source_list = []
+    for idx, item in enumerate(items, 1):
+        source_list.append(f"{idx}. {item['title']}")
+        source_list.append(f"Source: {item['url']}\n")
+        
+    filename = os.path.join(folder, f"sources_raw_{file_timestamp}.txt")
+    with open(filename, "w") as f:
+        f.write("\n".join(source_list))
+        
+    print(f"Raw source backup saved to: {filename}")
+    return {}
+
 def filter_relevance(state: WorkflowState):
     """Node 2: High-reliability LLM relevance check using GPT-4o-mini."""
     items_to_check = state.get("processed_items", [])

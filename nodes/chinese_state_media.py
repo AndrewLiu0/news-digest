@@ -2,8 +2,7 @@ import os
 import requests
 from datetime import datetime
 from config import (
-    STATE_MEDIA_PAGES, ENABLE_CHINESE_STATE_MEDIA, LOOKBACK_DAYS,
-    JINA_TIMEOUT, MAX_PAGE_CONTENT_CHARS
+    STATE_MEDIA_PAGES, ENABLE_CHINESE_STATE_MEDIA, LOOKBACK_DAYS
 )
 from utils import parse_article, canonicalize_url, is_within_lookback
 from nodes.collection_agent import structured_llm, filter_markdown
@@ -23,7 +22,7 @@ def fetch_chinese_state_media(state):
     seen_urls = set()
     jina_api_key = os.getenv("JINA_API_KEY")
     
-    print(f"🚀 Starting parallel Chinese State Media Scrape for {len(STATE_MEDIA_PAGES)} pages using {MAX_WORKERS} workers...")
+    print(f"Starting parallel Chinese State Media Scrape for {len(STATE_MEDIA_PAGES)} pages using {MAX_WORKERS} workers...")
 
     def process_page(url):
         content = ""
@@ -54,11 +53,11 @@ def fetch_chinese_state_media(state):
                 if jina_api_key:
                     headers["Authorization"] = f"Bearer {jina_api_key}"
                 
-                resp = requests.get(f"https://r.jina.ai/{url}", headers=headers, timeout=JINA_TIMEOUT)
+                resp = requests.get(f"https://r.jina.ai/{url}", headers=headers, timeout=30)
                 if resp.status_code == 200:
                     content = filter_markdown(resp.text)
             except Exception as e:
-                print(f"  ❌ Fallback Error on {url}: {e}")
+                print(f"  [Fallback Error on {url}: {e}]")
                 
         if not content: return []
 
@@ -78,7 +77,7 @@ def fetch_chinese_state_media(state):
             
             result = structured_llm.invoke([
                 ("system", system_prompt),
-                ("human", f"PAGE CONTENT:\n{content[:MAX_PAGE_CONTENT_CHARS]}")
+                ("human", f"PAGE CONTENT:\n{content[:25000]}")
             ])
 
             collected = []
@@ -89,7 +88,7 @@ def fetch_chinese_state_media(state):
                     collected.append(art)
             return collected
         except Exception as e:
-            print(f"  ❌ Error on {url}: {e}")
+            print(f"  [Error on {url}: {e}]")
             return []
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
@@ -110,6 +109,5 @@ def fetch_chinese_state_media(state):
                     all_collected.append(parsed)
                     seen_urls.add(c_url)
 
-    print(f"✅ Parallel Chinese State Media collection complete: {len(all_collected)} items captured.")
+    print(f"Parallel Chinese State Media collection complete: {len(all_collected)} items captured.")
     return {"raw_items": all_collected}
-

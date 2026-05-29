@@ -6,7 +6,6 @@ from nodes.fetch import fetch_gdelt_doc, fetch_rss_feeds, fetch_tavily_search, f
 from nodes.chinese_state_media import fetch_chinese_state_media
 from nodes.collection_agent import run_collection_agent
 from nodes.process import deduplicate_and_filter, filter_relevance, strategic_deduplication
-from nodes.scrape import scrape_with_jina
 
 # --- Graph Construction ---
 
