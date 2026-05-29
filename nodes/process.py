@@ -123,18 +123,18 @@ from config import MAX_TOTAL_ARTICLES, MAX_DEEP_DIVE_COUNT, MAX_RELEVANCE_CHECK,
 
 def save_raw_sources(state: WorkflowState):
     """
-    Node 2a-2: Saves the list of ALL discovered and deduped sources BEFORE any filtering.
+    Node 2a-2: Saves the list of relevant sources BEFORE strategic deduplication triage.
     Only runs if ENABLE_RAW_SOURCE_LIST is True.
     """
     if not ENABLE_RAW_SOURCE_LIST:
         return {}
 
-    items = state.get("processed_items", [])
+    items = state.get("filtered_items", [])
     if not items:
         print("Save Raw Sources: No items to save.")
         return {}
 
-    print(f"Saving {len(items)} raw discovered sources (backup)...")
+    print(f"💾 Saving {len(items)} relevant sources before triage...")
     
     file_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     folder = "intel_reports"
@@ -149,7 +149,7 @@ def save_raw_sources(state: WorkflowState):
     with open(filename, "w") as f:
         f.write("\n".join(source_list))
         
-    print(f"Raw source backup saved to: {filename}")
+    print(f"✅ Raw source list saved to: {filename}")
     return {}
 
 def filter_relevance(state: WorkflowState):
