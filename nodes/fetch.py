@@ -16,10 +16,15 @@ from state import WorkflowState
 from utils import fetch_with_retry, parse_article
 
 def fetch_tavily_search(state: WorkflowState):
-    """Fetches search results via DuckDuckGo (Free) with Tavily (Paid) as fallback"""
+    """Fetches search results via Tavily Search (Paid API)"""
     if not ENABLE_TAVILY:
         return {"raw_items": []}
     
+    api_key = os.getenv("TAVILY_API_KEY")
+    if not api_key:
+        print("Tavily API Key missing, skipping search.")
+        return {"raw_items": []}
+        
     queries = [
         "US China bilateral relations diplomacy",
         "US China trade economic policy tariffs",
@@ -36,72 +41,38 @@ def fetch_tavily_search(state: WorkflowState):
         "US China climate change cooperation energy"
     ]
     
-    parsed = []
+    print(f"Running Tavily Search for {len(queries)} queries...")
+    client = TavilyClient(api_key=api_key)
     
-    # 1. Primary: DuckDuckGo Search (Free)
-    try:
-        from ddgs import DDGS
+    from concurrent.futures import ThreadPoolExecutor
+    
+    def run_search(query):
+        try:
+            return client.search(
+                query=query,
+                topic="news",
+                days=LOOKBACK_DAYS,
+                max_results=TAVILY_MAX_RESULTS,
+                search_depth="advanced",
+                include_domains=list(ALLOWED_DOMAINS)
+            )
+        except Exception as e:
+            print(f"Tavily search error on '{query}': {e}")
+            return {'results': []}
 
-        print("🔍 Running DuckDuckGo Search (Free) as primary search...")
-        
-        for q in queries:
-            try:
-                # Query without the site: operator since DDG blocks/fails it
-                results = list(ddgs.text(q, max_results=30, safesearch='off', timelimit='w'))
-                for r in results:
-                    # parse_article natively drops anything not in ALLOWED_DOMAINS
-                    item = parse_article({
-                        "title": r.get('title', ''),
-                        "url": r.get('href', ''),
-                        "seendate": "" # Let parser handle date inference from URL or assume fresh
-                    }, "duckduckgo")
-                    if item:
-                        parsed.append(item)
-                time.sleep(1) # Be nice to DDG rate limits
-            except Exception as e:
-                print(f"  ⚠️ DDG Error on '{q}': {e}")
-                
-    except Exception as e:
-        print(f"⚠️ DuckDuckGo initialization failed: {e}")
-
-    # 2. Fallback: Tavily Search (Paid API)
-    if not parsed:
-        print("⚠️ DuckDuckGo returned 0 items. Falling back to Tavily Search (Paid)...")
-        api_key = os.getenv("TAVILY_API_KEY")
-        if not api_key:
-            print("⚠️ Tavily API Key missing, skipping fallback.")
-            return {"raw_items": []}
-            
-        client = TavilyClient(api_key=api_key)
-        
-        from concurrent.futures import ThreadPoolExecutor
-        
-        def run_search(query):
-            try:
-                return client.search(
-                    query=query,
-                    topic="news",
-                    days=LOOKBACK_DAYS,
-                    max_results=TAVILY_MAX_RESULTS,
-                    search_depth="advanced",
-                    include_domains=list(ALLOWED_DOMAINS)
-                )
-            except Exception as e:
-                print(f"Tavily search error on '{query}': {e}")
-                return {'results': []}
-
-        with ThreadPoolExecutor(max_workers=len(queries)) as executor:
-            search_responses = list(executor.map(run_search, queries))
-        
-        for response in search_responses:
-            for r in response.get('results', []):
-                item = parse_article({
-                    "title": r.get('title', ''),
-                    "url": r.get('url', ''),
-                    "seendate": r.get('published_date', '') # Use actual date if Tavily provides it
-                }, "tavily")
-                if item:
-                    parsed.append(item)
+    with ThreadPoolExecutor(max_workers=len(queries)) as executor:
+        search_responses = list(executor.map(run_search, queries))
+    
+    parsed = []
+    for response in search_responses:
+        for r in response.get('results', []):
+            item = parse_article({
+                "title": r.get('title', ''),
+                "url": r.get('url', ''),
+                "seendate": r.get('published_date', '')
+            }, "tavily")
+            if item:
+                parsed.append(item)
                 
     print(f"Search found {len(parsed)} official items")
     return {"raw_items": parsed}
@@ -113,7 +84,7 @@ def fetch_gdelt_doc(state: WorkflowState):
     
     # Build a precise query for GDELT
     query = DOC_QUERY
-    print(f"DEBUG: GDELT query: {query}")
+    # print(f"DEBUG: GDELT query: {query}")
     
     resp = fetch_with_retry(
         "https://api.gdeltproject.org/api/v2/doc/doc",
