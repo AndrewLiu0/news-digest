@@ -13,6 +13,7 @@ tavily-python
 beautifulsoup4
 trafilatura
 lxml_html_clean
+ddgs
 
 # Utilities
 python-dotenv

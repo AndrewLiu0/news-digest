@@ -40,8 +40,8 @@ def fetch_tavily_search(state: WorkflowState):
     
     # 1. Primary: DuckDuckGo Search (Free)
     try:
-        from duckduckgo_search import DDGS
-        ddgs = DDGS()
+        from ddgs import DDGS
+
         print("🔍 Running DuckDuckGo Search (Free) as primary search...")
         
         for q in queries:
