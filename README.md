@@ -75,8 +75,32 @@ You can run this tool in two ways:
   ```
 - This will run the full intelligence gathering process directly in your terminal and save the reports to the `intel_reports/` folder.
 
+#### **Option C: One-Click Mode (Windows Users Only)**
+*The easiest way for non-technical users on Windows.*
+- **Action:** Simply double-click the file named `Run_on_Windows.bat` in this folder.
+- **What it does:** It automatically creates your environment, installs what's missing, and runs the tool. It will even warn you if your API keys are missing.
+
+---
+
+## Customizing the AI Filters
+
+You can adjust how "strict" or "lenient" the tool is by editing the **Prompts** (the instructions written in plain English for the AI). 
+
+You do not need to know how to code to do this. Simply open the file named **`prompts.py`** in a basic text editor (like Notepad or TextEdit). 
+
+Inside that file, you can edit the text within the triple quotes `""" ... """` for each of the three filters:
+
+1.  **RELEVANCE_FILTER_PROMPT:** The "Gatekeeper." Use this to add or remove topics you want the tool to prioritize or ignore.
+2.  **TRIAGE_PROMPT:** The "Editor." Use this to control how aggressively the tool removes similar or redundant news stories.
+3.  **HARVESTER_PROMPT:** The "Extractor." Use this if you find the tool is missing links on official government pages.
+
+**After you save your changes in `prompts.py`, just run the tool again to see the effect.**
+
+---
+
 ## Files in this project
 - `main.py`: The main "brain" of the tool.
+- `prompts.py`: **[EDIT THIS]** Plain-English instructions for the AI filters.
 - `langgraph.json`: Configuration for the engine.
 - `.env`: Where you store your private keys.
 - `requirements.txt`: A list of extra parts Python needs to run this tool.

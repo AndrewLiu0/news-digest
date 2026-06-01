@@ -6,6 +6,7 @@ from config import (
 )
 from utils import parse_article, canonicalize_url, is_within_lookback
 from nodes.collection_agent import structured_llm, filter_markdown
+from prompts import HARVESTER_PROMPT
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -27,12 +28,12 @@ def fetch_chinese_state_media(state):
     def process_page(url):
         content = ""
         try:
-            # 1. Primary: Local Scrape with BeautifulSoup (Free)
+            # 1. Primary: Local Scrape (Free)
             headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-            resp = requests.get(url, headers=headers, timeout=10)
-            if resp.status_code == 200:
+            raw_resp = requests.get(url, headers=headers, timeout=10)
+            if raw_resp.status_code == 200:
                 from bs4 import BeautifulSoup
-                soup = BeautifulSoup(resp.content, "html.parser")
+                soup = BeautifulSoup(raw_resp.content, "html.parser")
                 for a in soup.find_all('a', href=True):
                     text = a.get_text(strip=True)
                     if text:
@@ -43,11 +44,9 @@ def fetch_chinese_state_media(state):
                         a.replace_with(f"[{text}]({href})")
                 text = soup.get_text(separator="\n", strip=True)
                 content = filter_markdown(text)
-        except Exception as e:
-            pass # Silent fail to fallback
+        except: pass
             
-        # 2. Fallback: Jina Reader (Paid/Rate Limited API)
-        if not content or len(content) < 200:
+        if not content or len(content) < 300:
             try:
                 headers = {"X-Return-Format": "markdown"}
                 if jina_api_key:
@@ -56,34 +55,21 @@ def fetch_chinese_state_media(state):
                 resp = requests.get(f"https://r.jina.ai/{url}", headers=headers, timeout=30)
                 if resp.status_code == 200:
                     content = filter_markdown(resp.text)
-            except Exception as e:
-                print(f"  [Fallback Error on {url}: {e}]")
+            except: pass
                 
         if not content: return []
 
         try:
             current_date = datetime.now().strftime('%B %d, %Y')
-            system_prompt = (
-                "You are a Strategic Intelligence Analyst specializing in Chinese Media.\n"
-                f"TODAY'S DATE: {current_date}\n"
-                "Extract official statements or news related STRICTURELY to US-China bilateral strategic relations.\n"
-                "CRITICAL INSTRUCTIONS:\n"
-                "1. Focus on: Bilateral diplomacy, Trade/Tariffs, Tech Competition, and Military Security.\n"
-                "2. EXCLUDE: Soft power stories, infrastructure in third countries (BRI general news), and purely domestic Chinese news.\n"
-                "3. You MUST extract the EXACT DATE written next to or below the article title.\n"
-                "4. DO NOT use the generic 'Published Time' at the top of the page.\n"
-                "5. If there is no specific date for the article in the text, you MUST SKIP IT."
-            )
-            
             result = structured_llm.invoke([
-                ("system", system_prompt),
+                ("system", f"TODAY'S DATE IS {current_date}.\n" + HARVESTER_PROMPT),
                 ("human", f"PAGE CONTENT:\n{content[:25000]}")
             ])
 
             collected = []
             if result and result.articles:
                 for art in result.articles:
-                    if not is_within_lookback(art.date):
+                    if not is_within_lookback(art.date, art.url):
                         continue
                     collected.append(art)
             return collected

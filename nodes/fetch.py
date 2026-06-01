@@ -13,7 +13,7 @@ from config import (
     TAVILY_MAX_RESULTS, GDELT_MAX_RECORDS, GNEWS_MAX_RESOLVE
 )
 from state import WorkflowState
-from utils import fetch_with_retry, parse_article
+from utils import fetch_with_retry, parse_article, get_date_object
 
 def fetch_tavily_search(state: WorkflowState):
     """Fetches search results via Tavily Search (Paid API)"""
@@ -69,7 +69,8 @@ def fetch_tavily_search(state: WorkflowState):
             item = parse_article({
                 "title": r.get('title', ''),
                 "url": r.get('url', ''),
-                "seendate": r.get('published_date', '')
+                "seendate": r.get('published_date', ''),
+                "reasoning": r.get('content', '') # Capture snippet for filtering
             }, "tavily")
             if item:
                 parsed.append(item)
@@ -136,9 +137,12 @@ def fetch_google_news(state: WorkflowState):
         raw_to_process = items[:GNEWS_MAX_RESOLVE]
         print(f"Google News: Resolving {len(raw_to_process)} URLs in parallel...")
 
+        from googlenewsdecoder import gnewsdecoder
+
         def resolve_url(item):
             gnews_url = item.find("link").text
             title = item.find("title").text
+            description = item.find("description").text if item.find("description") is not None else ""
             
             pub_date_str = ""
             pubdate_elem = item.find("pubDate")
@@ -151,16 +155,28 @@ def fetch_google_news(state: WorkflowState):
                     pub_date_str = pubdate_elem.text
                     
             try:
-                # Use a shorter timeout for resolution to keep it snappy
-                res = requests.get(gnews_url, headers=headers, allow_redirects=True, timeout=10)
-                final_url = res.url
+                # Use googlenewsdecoder for reliable resolution
+                decoded = gnewsdecoder(gnews_url)
+                if decoded.get("status"):
+                    final_url = decoded["decoded_url"]
+                else:
+                    # Fallback to requests if decoder fails
+                    res = requests.get(gnews_url, headers=headers, allow_redirects=True, timeout=10)
+                    final_url = res.url
             except:
                 final_url = gnews_url
+
+            # Try to get a more accurate date from the final URL
+            # URL dates are usually the "Gold Standard" compared to GNews RSS index dates
+            url_date = get_date_object("", final_url)
+            if url_date:
+                pub_date_str = url_date.strftime("%Y%m%d")
                 
             return parse_article({
                 "title": title,
                 "url": final_url,
-                "seendate": pub_date_str 
+                "seendate": pub_date_str,
+                "reasoning": description
             }, "google_news")
 
         from concurrent.futures import ThreadPoolExecutor
@@ -198,6 +214,7 @@ def fetch_rss_feeds(state: WorkflowState):
                     
                     title = root.find("title").text if root.find("title") is not None else ""
                     link = root.find("link").text if root.find("link") is not None else ""
+                    description = root.find("description").text if root.find("description") is not None else ""
                     
                     if link and (any(k.upper() in title.upper() for k in RSS_KEYWORDS) or 
                                  any(k.upper() in link.upper() for k in RSS_KEYWORDS)):
@@ -222,7 +239,8 @@ def fetch_rss_feeds(state: WorkflowState):
                         item = parse_article({
                             "title": title,
                             "url": link,
-                            "seendate": extracted_date or "" # Leave blank if not found
+                            "seendate": extracted_date or "", # Leave blank if not found
+                            "reasoning": description
                         }, "rss")
                         if item:
                             items.append(item)

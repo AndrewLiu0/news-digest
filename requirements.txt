@@ -2,14 +2,15 @@
 langgraph
 langchain
 langchain-core
+langchain-openai
 
 # AI Model Providers & SDKs
-langchain-openai
 openai
 
 # News & Search Tools
 requests
 tavily-python
+googlenewsdecoder
 beautifulsoup4
 trafilatura
 lxml_html_clean
