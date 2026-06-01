@@ -126,7 +126,7 @@ MAX_TOTAL_ARTICLES = 250  # Total articles in the final report
 # --- Processing & Limit Settings ---
 MAX_RELEVANCE_CHECK = 300      # Optimized for cost/quality balance
 MAX_DEEP_DIVE_COUNT = 15      # Focused on the most critical items
-MAX_WORKERS = 5               # Reduced to avoid OpenAI TPM rate limits
+MAX_WORKERS = 3               # Further reduced to prevent OpenAI rate limit errors
 
 # --- Discovery Limits ---
 TAVILY_MAX_RESULTS = 50
