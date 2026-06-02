@@ -273,5 +273,3 @@ def strategic_deduplication(state: WorkflowState):
         "filtered_items": final_retained,
         "additional_sources": []
     }
-ources": []
-    }
