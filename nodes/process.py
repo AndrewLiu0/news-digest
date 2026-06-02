@@ -148,7 +148,12 @@ def save_pre_filtered_sources(state: WorkflowState):
         source_list.append(f"Source: {item['url']}\n")
         
     filename = os.path.join(folder, f"sources_pre_filtered_{file_timestamp}.txt")
-    with open(filename, "w") as f:
+    latest_filename = os.path.join(folder, "latest_pre_filtered.txt")
+    
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write("\n".join(source_list))
+        
+    with open(latest_filename, "w", encoding="utf-8") as f:
         f.write("\n".join(source_list))
         
     print(f"✅ Pre-filtered source list saved to: {filename}")
@@ -185,7 +190,8 @@ def save_raw_sources(state: WorkflowState):
         source_list.append(f"Source: {item['url']}\n")
         
     filename = os.path.join(folder, f"sources_raw_{file_timestamp}.txt")
-    with open(filename, "w") as f:
+    
+    with open(filename, "w", encoding="utf-8") as f:
         f.write("\n".join(source_list))
         
     print(f"✅ Raw source list saved to: {filename}")
@@ -266,4 +272,6 @@ def strategic_deduplication(state: WorkflowState):
     return {
         "filtered_items": final_retained,
         "additional_sources": []
+    }
+ources": []
     }

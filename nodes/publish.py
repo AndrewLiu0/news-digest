@@ -28,7 +28,8 @@ def publish_source_list(state: WorkflowState):
         idx += 1
         
     source_filename = os.path.join(folder, f"sources_{file_timestamp}.txt")
-    with open(source_filename, "w") as f:
+    
+    with open(source_filename, "w", encoding="utf-8") as f:
         f.write("\n".join(source_list))
 
     print(f"Final source list saved to: {source_filename}")

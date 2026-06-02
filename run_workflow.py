@@ -1,7 +1,17 @@
 import uuid
+import sys
+import io
 from datetime import datetime
 from main import agent
 from dotenv import load_dotenv
+
+# Force UTF-8 encoding for Windows terminals
+if sys.stdout.encoding != 'utf-8':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except AttributeError:
+        # Fallback for older Python versions
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 load_dotenv()
 
